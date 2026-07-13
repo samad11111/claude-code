@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createProviderNode, getProviderNodes } from "@/models";
+import { createProviderNode, getProviderNodes, getProviderNodesCount } from "@/models";
 import {
   OPENAI_COMPATIBLE_PREFIX,
   ANTHROPIC_COMPATIBLE_PREFIX,
@@ -62,11 +62,23 @@ function sanitizeClaudeCodeCompatibleBaseUrl(baseUrl: string) {
 }
 
 // GET /api/provider-nodes - List all provider nodes
-export async function GET() {
+export async function GET(request?: Request) {
   try {
-    const nodes = await getProviderNodes();
+    const url = new URL(request?.url ?? "http://localhost/api/provider-nodes");
+    const limitValue = url.searchParams.get("limit");
+    const offsetValue = url.searchParams.get("offset");
+    const parsedLimit = limitValue ? Number.parseInt(limitValue, 10) : undefined;
+    const parsedOffset = offsetValue ? Number.parseInt(offsetValue, 10) : undefined;
+    const limit =
+      Number.isInteger(parsedLimit) && parsedLimit && parsedLimit > 0 ? parsedLimit : undefined;
+    const offset =
+      Number.isInteger(parsedOffset) && parsedOffset && parsedOffset > 0 ? parsedOffset : 0;
+
+    const total = getProviderNodesCount();
+    const nodes = await getProviderNodes({}, limit, offset);
     return NextResponse.json({
       nodes,
+      total,
       ccCompatibleProviderEnabled: isCcCompatibleProviderEnabled(),
     });
   } catch (error) {

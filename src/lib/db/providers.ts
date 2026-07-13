@@ -93,7 +93,12 @@ const PROVIDER_CONNECTIONS_COLUMNS = new Set([
 
 // ──────────────── Provider Connections ────────────────
 
-export async function getProviderConnections(filter: JsonRecord = {}, columns?: string[]) {
+export async function getProviderConnections(
+  filter: JsonRecord = {},
+  limit?: number,
+  offset?: number,
+  columns?: string[],
+) {
   const db = getDbInstance() as unknown as DbLike;
   let selectCols = "*";
   if (columns?.length) {
@@ -128,6 +133,11 @@ export async function getProviderConnections(filter: JsonRecord = {}, columns?: 
     sql += " WHERE " + conditions.join(" AND ");
   }
   sql += " ORDER BY priority ASC, updated_at DESC";
+  if (limit !== undefined) {
+    sql += " LIMIT @limit OFFSET @offset";
+    params.limit = limit;
+    params.offset = offset ?? 0;
+  }
 
   const rows = db.prepare(sql).all(params);
   return rows.map((r) => {
@@ -142,6 +152,33 @@ export async function getProviderConnections(filter: JsonRecord = {}, columns?: 
       )
     );
   });
+}
+
+export function getProviderConnectionsCount(filter: JsonRecord = {}): number {
+  const db = getDbInstance() as unknown as DbLike;
+  let sql = "SELECT count(*) as cnt FROM provider_connections";
+  const conditions: string[] = [];
+  const params: Record<string, unknown> = {};
+
+  if (filter.provider) {
+    conditions.push("provider = @provider");
+    params.provider = filter.provider;
+  }
+  if (filter.isActive !== undefined) {
+    conditions.push("is_active = @isActive");
+    params.isActive = filter.isActive ? 1 : 0;
+  }
+  if (filter.authType) {
+    conditions.push("auth_type = @authType");
+    params.authType = filter.authType;
+  }
+
+  if (conditions.length > 0) {
+    sql += " WHERE " + conditions.join(" AND ");
+  }
+
+  const row = db.prepare(sql).get(params) as { cnt: number };
+  return row.cnt;
 }
 
 export async function getProviderConnectionById(id: string) {
@@ -878,6 +915,7 @@ export function autoMigrateLegacyEncryptedConnections(): number {
 
 export {
   getProviderNodes,
+  getProviderNodesCount,
   getProviderNodeById,
   resolveProviderNodeForConnection,
   createProviderNode,

@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
-import { getCombos, createCombo, getComboByName, isCloudEnabled } from "@/lib/localDb";
+import {
+  getCombos,
+  getCombosCount,
+  createCombo,
+  getComboByName,
+  isCloudEnabled,
+} from "@/lib/localDb";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
 import { syncToCloud } from "@/lib/cloudSync";
 import { validateCompositeTiersConfig } from "@/lib/combos/compositeTiers";
@@ -16,8 +22,19 @@ export async function GET(request: Request) {
   if (authError) return authError;
 
   try {
-    const combos = await getCombos();
-    return NextResponse.json({ combos });
+    const url = new URL(request.url);
+    const limitValue = url.searchParams.get("limit");
+    const offsetValue = url.searchParams.get("offset");
+    const parsedLimit = limitValue ? Number.parseInt(limitValue, 10) : undefined;
+    const parsedOffset = offsetValue ? Number.parseInt(offsetValue, 10) : undefined;
+    const limit =
+      Number.isInteger(parsedLimit) && parsedLimit && parsedLimit > 0 ? parsedLimit : undefined;
+    const offset =
+      Number.isInteger(parsedOffset) && parsedOffset && parsedOffset > 0 ? parsedOffset : undefined;
+
+    const total = getCombosCount();
+    const combos = await getCombos(limit, offset);
+    return NextResponse.json({ combos, total });
   } catch (error) {
     console.log("Error fetching combos:", error);
     return NextResponse.json({ error: "Failed to fetch combos" }, { status: 500 });
