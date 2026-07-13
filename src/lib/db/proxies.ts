@@ -232,17 +232,30 @@ function getAssignmentRow(
   return row ? mapAssignmentRow(row) : null;
 }
 
-export async function listProxies(options?: { includeSecrets?: boolean }) {
-  const includeSecrets = options?.includeSecrets === true;
-  const db = getDbInstance();
-  const rows = db
-    .prepare(
-      "SELECT id, name, type, host, port, username, password, region, notes, status, source, family, created_at, updated_at FROM proxy_registry ORDER BY datetime(updated_at) DESC, name ASC"
-    )
-    .all();
+interface CountResult {
+  cnt: number;
+}
 
+export async function listProxies(options?: {
+  includeSecrets?: boolean;
+  limit?: number;
+  offset?: number;
+}) {
+  const includeSecrets = options?.includeSecrets === true;
+  const limit = options?.limit;
+  const offset = options?.offset ?? 0;
+  const db = getDbInstance();
+  let sql =
+    "SELECT id, name, type, host, port, username, password, region, notes, status, source, family, created_at, updated_at FROM proxy_registry ORDER BY datetime(updated_at) DESC, name ASC";
+  const params: unknown[] = [];
+  if (limit !== undefined) {
+    sql += " LIMIT ? OFFSET ?";
+    params.push(limit, offset);
+  }
+  const rows = db.prepare(sql).all(...params) as unknown[];
+  const total = db.prepare<CountResult>("SELECT count(*) as cnt FROM proxy_registry").get()!.cnt;
   const proxies = rows.map(mapProxyRow);
-  return includeSecrets ? proxies : proxies.map(redactProxySecrets);
+  return { items: includeSecrets ? proxies : proxies.map(redactProxySecrets), total };
 }
 
 export async function getProxyById(id: string, options?: { includeSecrets?: boolean }) {
@@ -687,13 +700,23 @@ function getOrCreateRotationRow(
   db: ReturnType<typeof getDbInstance>,
   normalizedScope: string,
   rotationScopeId: string
-): { strategy: ProxyRotationStrategy; cursor: number; stickyWindowMinutes: number; rotatedAt: string | null } {
+): {
+  strategy: ProxyRotationStrategy;
+  cursor: number;
+  stickyWindowMinutes: number;
+  rotatedAt: string | null;
+} {
   const row = db
     .prepare(
       "SELECT strategy, cursor, sticky_window_minutes, rotated_at FROM proxy_scope_rotation WHERE scope = ? AND scope_id IS ?"
     )
     .get(normalizedScope, rotationScopeId) as
-    | { strategy?: string; cursor?: number; sticky_window_minutes?: number; rotated_at?: string | null }
+    | {
+        strategy?: string;
+        cursor?: number;
+        sticky_window_minutes?: number;
+        rotated_at?: string | null;
+      }
     | undefined;
 
   if (row) {
@@ -752,7 +775,13 @@ function pickFromCandidates<T>(
       cursor = state.cursor + 1;
       db.prepare(
         "UPDATE proxy_scope_rotation SET cursor = ?, rotated_at = ?, updated_at = ? WHERE scope = ? AND scope_id IS ?"
-      ).run(cursor, new Date().toISOString(), new Date().toISOString(), normalizedScope, rotationScopeId);
+      ).run(
+        cursor,
+        new Date().toISOString(),
+        new Date().toISOString(),
+        normalizedScope,
+        rotationScopeId
+      );
     }
     const idx = ((cursor % candidates.length) + candidates.length) % candidates.length;
     return candidates[idx];
