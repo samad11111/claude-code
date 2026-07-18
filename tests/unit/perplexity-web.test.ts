@@ -160,7 +160,7 @@ test("Non-streaming: strips citations from response", async () => {
   try {
     const executor = new PerplexityWebExecutor();
     const result = await executor.execute({
-      model: "pplx-gpt",
+      model: "pplx-sonar",
       body: { messages: [{ role: "user", content: "meaning of life" }], stream: false },
       stream: false,
       credentials: { apiKey: "test-cookie" },
@@ -487,7 +487,7 @@ test("Error: 429 returns rate limit message", async () => {
   try {
     const executor = new PerplexityWebExecutor();
     const result = await executor.execute({
-      model: "pplx-gpt",
+      model: "pplx-sonar",
       body: { messages: [{ role: "user", content: "hi" }] },
       stream: false,
       credentials: { apiKey: "test-cookie" },
@@ -765,7 +765,7 @@ test("Auth: JWT auth sends Authorization Bearer header", async () => {
 
 // ─── Test: Model mapping ────────────────────────────────────────────────────
 
-test("Model mapping: pplx-gpt sends current GPT-5.5 internal preference", async () => {
+test("Model mapping: GPT-5.6 Terra sends its current internal preference", async () => {
   let capturedBody = null;
   const original = globalThis.fetch;
   globalThis.fetch = async (url, opts) => {
@@ -789,7 +789,7 @@ test("Model mapping: pplx-gpt sends current GPT-5.5 internal preference", async 
   try {
     const executor = new PerplexityWebExecutor();
     await executor.execute({
-      model: "pplx-gpt",
+      model: "pplx-gpt-5.6-terra",
       body: { messages: [{ role: "user", content: "test" }], stream: false },
       stream: false,
       credentials: { apiKey: "test" },
@@ -797,7 +797,7 @@ test("Model mapping: pplx-gpt sends current GPT-5.5 internal preference", async 
       log: null,
     });
 
-    assert.equal(capturedBody.params.model_preference, "gpt55");
+    assert.equal(capturedBody.params.model_preference, "gpt56_terra");
     assert.equal(capturedBody.params.mode, "search");
   } finally {
     globalThis.fetch = original;
@@ -854,12 +854,12 @@ test("Provider registry: perplexity-web is registered with correct models", asyn
 
   const models = PROVIDER_MODELS["pplx-web"];
   assert.ok(models, "pplx-web should be in PROVIDER_MODELS");
-  assert.ok(models.length === 10, `Expected 10 models, got ${models.length}`);
+  assert.ok(models.length === 11, `Expected 11 models, got ${models.length}`);
 
   const modelIds = models.map((m) => m.id);
   assert.ok(modelIds.includes("pplx-auto"));
-  assert.ok(modelIds.includes("pplx-gpt"));
-  assert.ok(modelIds.includes("pplx-gpt-5.4"));
+  assert.ok(modelIds.includes("pplx-gpt-5.6-terra"));
+  assert.ok(modelIds.includes("pplx-gpt-5.6-sol"));
   assert.ok(modelIds.includes("pplx-sonnet"));
   assert.ok(modelIds.includes("pplx-opus"));
   assert.ok(modelIds.includes("pplx-gemini"));
@@ -867,11 +867,13 @@ test("Provider registry: perplexity-web is registered with correct models", asyn
   assert.ok(modelIds.includes("pplx-sonar"));
   assert.ok(modelIds.includes("pplx-kimi"));
   assert.ok(modelIds.includes("pplx-glm"));
+  assert.ok(modelIds.includes("pplx-grok-4.5"));
 });
 
 test("Provider registry: every advertised perplexity-web model has an explicit internal mapping", async () => {
   const { PROVIDER_MODELS } = await import("../../open-sse/config/providerModels.ts");
-  const { MODEL_MAP } = await import("../../open-sse/executors/perplexity-web/protocol.ts");
+  const { MODEL_MAP, THINKING_MAP } =
+    await import("../../open-sse/executors/perplexity-web/protocol.ts");
 
   const missing = PROVIDER_MODELS["pplx-web"].filter((model) => !MODEL_MAP[model.id]);
   assert.deepEqual(
@@ -879,6 +881,12 @@ test("Provider registry: every advertised perplexity-web model has an explicit i
     [],
     "all advertised Perplexity Web models should map to an explicit model_preference"
   );
+  assert.deepEqual(MODEL_MAP["pplx-gpt-5.6-terra"], ["search", "gpt56_terra"]);
+  assert.deepEqual(MODEL_MAP["pplx-gpt-5.6-sol"], ["search", "gpt56_sol"]);
+  assert.deepEqual(MODEL_MAP["pplx-grok-4.5"], ["search", "grok45low"]);
+  assert.equal(THINKING_MAP["pplx-gpt-5.6-terra"], "gpt56_terra_thinking");
+  assert.equal(THINKING_MAP["pplx-gpt-5.6-sol"], "gpt56_sol_thinking");
+  assert.equal(THINKING_MAP["pplx-grok-4.5"], "grok45medium");
 });
 
 // ─── Test: Fallback text field ──────────────────────────────────────────────
