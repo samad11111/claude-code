@@ -67,6 +67,7 @@ import { estimateTokens } from "./contextManager.ts";
 import { getSessionConnection } from "./sessionManager.ts";
 import {
   applySessionStickiness,
+  extractStickinessMessages,
   recordStickyBinding,
   clearStickyBinding,
   peekStickyConnectionId,
@@ -1242,10 +1243,7 @@ export async function handleComboChat({
   );
   const _sticky = disableSessionStickiness
     ? ({ targets: orderedTargets, messageHash: null, stuck: false } as const)
-    : await applySessionStickiness(
-        orderedTargets,
-        body.messages as Array<{ role?: string; content?: unknown }>
-      );
+    : await applySessionStickiness(orderedTargets, extractStickinessMessages(body));
   orderedTargets = _sticky.targets;
   orderedTargets = orderTargetsByEvalScores(orderedTargets, config.evalRouting, log);
   orderedTargets = filterTargetsByRequestCompatibility(orderedTargets, body, log);
@@ -2666,10 +2664,7 @@ async function handleRoundRobinCombo({
   );
   const _rrSessionSticky = disableSessionStickiness
     ? ({ targets: filteredTargets, messageHash: null, stuck: false } as const)
-    : await applySessionStickiness(
-        filteredTargets,
-        body?.messages as Array<{ role?: string; content?: unknown }>
-      );
+    : await applySessionStickiness(filteredTargets, extractStickinessMessages(body));
   let rrStartIndex = startIndex;
   if (_rrSessionSticky.stuck) {
     const stickyIdx = filteredTargets.findIndex(

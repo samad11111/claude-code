@@ -283,6 +283,52 @@ export function deriveMessageHash(
   return createHash("sha256").update(text).digest("hex").slice(0, 16);
 }
 
+/**
+ * Normalize a request body into the `messages`-shaped array `deriveMessageHash`
+ * consumes, covering BOTH wire formats combo routing can receive (#7270):
+ *
+ * - Chat Completions (`/v1/chat/completions`): the turn lives in `.messages`.
+ * - Responses API (`/v1/responses`): the turn lives in `.input`, never
+ *   `.messages`. `.input` is either a raw prompt string or an array of input
+ *   items (`{ role, content }`, where content is a string or `input_text`
+ *   parts) — both shapes `deriveMessageHash` already understands once wrapped.
+ *
+ * Combo target ordering runs BEFORE per-target format translation, so the body
+ * reaching `applySessionStickiness` is still raw. Passing `body.messages`
+ * directly (its historical argument) resolves to `undefined` for every
+ * Responses-API request, silently disabling session stickiness across the whole
+ * `/v1/responses` surface. Deriving the key from this normalized view fixes that
+ * without teaching `deriveMessageHash` about multiple wire formats.
+ *
+ * Mirrors the same `.messages` → `.input` fallback already used for handoff
+ * source extraction in combo.ts. Returns `null` (fail-open) when neither shape
+ * carries a usable turn.
+ */
+export function extractStickinessMessages(
+  body: { messages?: unknown; input?: unknown } | null | undefined
+): Array<{ role?: string; content?: unknown }> | null {
+  if (!body || typeof body !== "object") return null;
+
+  const { messages, input } = body as { messages?: unknown; input?: unknown };
+
+  if (Array.isArray(messages) && messages.length > 0) {
+    return messages as Array<{ role?: string; content?: unknown }>;
+  }
+
+  // Responses API: a bare string prompt is the single user turn.
+  if (typeof input === "string" && input.length > 0) {
+    return [{ role: "user", content: input }];
+  }
+
+  // Responses API: an array of input items — deriveMessageHash picks the first
+  // `role: "user"` entry and hashes its text parts, so pass it through as-is.
+  if (Array.isArray(input) && input.length > 0) {
+    return input as Array<{ role?: string; content?: unknown }>;
+  }
+
+  return null;
+}
+
 /** Evict expired entries and enforce the hard cap. */
 function evict(): void {
   const now = Date.now();
