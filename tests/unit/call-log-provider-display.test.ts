@@ -4,7 +4,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const TEST_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "omniroute-call-log-provider-display-"));
+const TEST_DATA_DIR = fs.mkdtempSync(
+  path.join(os.tmpdir(), "omniroute-call-log-provider-display-")
+);
 process.env.DATA_DIR = TEST_DATA_DIR;
 
 const core = await import("../../src/lib/db/core.ts");
@@ -107,8 +109,8 @@ test("buildCallLogListRows adds providerDisplay to active and completed in-memor
     ],
   });
 
-  const pending = rows.find((row: any) => row.id === "pending-1");
-  const completed = rows.find((row: any) => row.id === "completed-1");
+  const pending = rows.find((row) => row.id === "pending-1");
+  const completed = rows.find((row) => row.id === "completed-1");
 
   assert.equal(pending?.providerDisplay, "Bynara");
   assert.equal(completed?.providerDisplay, "Bynara");

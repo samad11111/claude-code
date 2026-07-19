@@ -294,7 +294,7 @@ All **18** strategies — mix & match per combo step:
 | ☁️ Cloud agents                        | **Codex, Cursor, Devin, Jules**                                     | None          |
 | 🥷 TLS fingerprint stealth             | **JA3/JA4 via wreq-js**                                             | None          |
 | 🖥️ Multi-platform                      | **Web · Desktop · Termux · PWA**                                    | Web only      |
-| 🌍 i18n                                | **42 locales**                                                      | 0–4           |
+| 🌍 i18n                                | **43 locales**                                                      | 0–4           |
 
 <sub>📊 Detailed comparison vs LiteLLM, OpenRouter & Portkey → [`docs/comparison/OMNIROUTE_VS_ALTERNATIVES.md`](docs/comparison/OMNIROUTE_VS_ALTERNATIVES.md)</sub>
 
@@ -937,7 +937,7 @@ Compression: aggressive (~50%) → double your free quota · Cost: $0/mo
 </div>
 
 - **Runtime**: Node.js 22.x or 24.x LTS (24 LTS recommended) — `>=22.22.2 <23 || >=24.0.0 <27`
-- **Language**: TypeScript 6.0 — **100% TypeScript** across `src/` and `open-sse/` (zero `any` in core modules since v2.0)
+- **Language**: TypeScript 7.0 native CLI + TypeScript 6 compatibility API — **100% TypeScript** across `src/` and `open-sse/` (zero `any` in core modules since v2.0)
 - **Framework**: Next.js 16 + React 19 + Tailwind CSS 4
 - **Database**: better-sqlite3 (SQLite) + LowDB (JSON legacy) — domain state, proxy logs, MCP audit, routing decisions, memory, skills
 - **Schemas**: Zod (MCP tool I/O validation, API contracts)
