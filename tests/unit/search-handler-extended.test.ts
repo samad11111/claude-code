@@ -153,7 +153,15 @@ test("handleSearch builds Perplexity requests, forwards filters, and enforces ma
       searchType: "web",
       country: "US",
       language: "en",
-      domainFilter: ["example.com", "-spam.com"],
+      timeRange: "week",
+      domainFilter: ["example.com"],
+      providerOptions: {
+        max_tokens: 4000,
+        max_tokens_per_page: 1000,
+        search_language_filter: ["EN", "ko"],
+        last_updated_after_filter: "06/01/2026",
+        search_before_date_filter: "07/01/2026",
+      },
       credentials: { apiKey: "perplexity-key" },
       log: null,
     });
@@ -164,16 +172,49 @@ test("handleSearch builds Perplexity requests, forwards filters, and enforces ma
       query: "ai agents",
       max_results: 1,
       country: "US",
-      search_language_filter: ["en"],
-      search_domain_filter: ["example.com", "-spam.com"],
+      search_language_filter: ["en", "ko"],
+      search_domain_filter: ["example.com"],
+      search_recency_filter: "week",
+      max_tokens: 4000,
+      max_tokens_per_page: 1000,
+      last_updated_after_filter: "06/01/2026",
+      search_before_date_filter: "07/01/2026",
     });
     assert.equal(result.success, true);
     assert.equal(result.data.results.length, 1);
     assert.equal(result.data.usage.queries_used, 1);
     assert.equal(result.data.usage.search_cost_usd, 0.005);
+
+    const localeResult = await handleSearch({
+      query: "localized search",
+      provider: "perplexity-search",
+      maxResults: 1,
+      searchType: "web",
+      language: "en-US",
+      credentials: { apiKey: "perplexity-key" },
+      log: null,
+    });
+    assert.equal(localeResult.success, true);
+    assert.deepEqual(captured.body.search_language_filter, ["en"]);
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("handleSearch rejects mixed Perplexity domain allowlist and denylist filters", async () => {
+  const result = await handleSearch({
+    query: "ai agents",
+    provider: "perplexity-search",
+    maxResults: 5,
+    searchType: "web",
+    domainFilter: ["example.com", "-spam.com"],
+    credentials: { apiKey: "perplexity-key" },
+    log: null,
+  });
+
+  assert.equal(result.success, false);
+  assert.equal(result.status, 400);
+  assert.match(result.error, /either include_domains or exclude_domains/);
 });
 
 test("handleSearch builds Exa requests with include/exclude domains and preserves rich result fields", async () => {

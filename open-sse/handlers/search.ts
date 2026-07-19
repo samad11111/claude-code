@@ -238,6 +238,65 @@ function parseDomainFilter(domainFilter?: string[]): {
   return { includes, excludes };
 }
 
+function normalizePerplexityLanguage(language?: string): string | undefined {
+  const primary = language?.split(/[-_]/, 1)[0]?.toLowerCase();
+  return primary && /^[a-z]{2}$/.test(primary) ? primary : undefined;
+}
+
+const perplexitySearchDateSchema = z
+  .string()
+  .regex(/^(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])\/\d{4}$/, "Expected MM/DD/YYYY");
+
+const perplexitySearchOptionsSchema = z.object({
+  max_tokens: z.coerce.number().int().min(1).max(1_000_000).optional(),
+  max_tokens_per_page: z.coerce.number().int().min(1).max(1_000_000).optional(),
+  search_language_filter: z
+    .array(
+      z
+        .string()
+        .regex(/^[A-Za-z]{2}$/, "Expected a two-letter ISO 639-1 language code")
+        .transform((value) => value.toLowerCase())
+    )
+    .max(10)
+    .optional(),
+  last_updated_after_filter: perplexitySearchDateSchema.optional(),
+  last_updated_before_filter: perplexitySearchDateSchema.optional(),
+  search_after_date_filter: perplexitySearchDateSchema.optional(),
+  search_before_date_filter: perplexitySearchDateSchema.optional(),
+  search_recency_filter: z.enum(["hour", "day", "week", "month", "year"]).optional(),
+});
+
+type PerplexitySearchOptions = z.infer<typeof perplexitySearchOptionsSchema>;
+
+function parsePerplexitySearchOptions(params: SearchRequestParams): {
+  options?: PerplexitySearchOptions;
+  error?: string;
+} {
+  const parsed = perplexitySearchOptionsSchema.safeParse(params.providerOptions ?? {});
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return { error: `Invalid Perplexity Search option: ${issue?.message || "invalid value"}` };
+  }
+
+  const { includes, excludes } = parseDomainFilter(params.domainFilter);
+  if (includes.length && excludes.length) {
+    return {
+      error:
+        "Perplexity Search domain filters must use either include_domains or exclude_domains, not both",
+    };
+  }
+
+  if (
+    params.language &&
+    !parsed.data.search_language_filter &&
+    !normalizePerplexityLanguage(params.language)
+  ) {
+    return { error: "Perplexity Search language must be a two-letter ISO 639-1 code" };
+  }
+
+  return { options: parsed.data };
+}
+
 function getProviderSettingString(
   params: Pick<SearchRequestParams, "providerOptions" | "providerSpecificData">,
   key: string
@@ -326,10 +385,21 @@ function buildPerplexityRequest(
   config: SearchProviderConfig,
   params: SearchRequestParams
 ): { url: string; init: RequestInit } {
-  const body: Record<string, unknown> = { query: params.query, max_results: params.maxResults };
-  if (params.country) body.country = params.country;
-  if (params.language) body.search_language_filter = [params.language];
+  const options = parsePerplexitySearchOptions(params).options ?? {};
+  const body: Record<string, unknown> = {
+    query: params.query,
+    max_results: params.maxResults,
+    ...options,
+  };
+  if (params.country) body.country = params.country.toUpperCase();
+  const language = normalizePerplexityLanguage(params.language);
+  if (language && !body.search_language_filter) {
+    body.search_language_filter = [language];
+  }
   if (params.domainFilter?.length) body.search_domain_filter = params.domainFilter;
+  if (params.timeRange && params.timeRange !== "any" && !body.search_recency_filter) {
+    body.search_recency_filter = params.timeRange;
+  }
   return {
     url: config.baseUrl,
     init: {
@@ -1246,6 +1316,13 @@ export async function handleSearch(options: SearchHandlerOptions): Promise<Searc
     contentOptions,
     providerOptions,
   };
+
+  if (primaryConfig.id === "perplexity-search") {
+    const perplexityValidation = parsePerplexitySearchOptions(requestParams);
+    if (perplexityValidation.error) {
+      return { success: false, status: 400, error: perplexityValidation.error };
+    }
+  }
 
   // 4. Try primary provider
   const result = await tryProvider(primaryConfig, requestParams, credentials, startTime, log);
