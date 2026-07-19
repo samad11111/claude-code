@@ -511,7 +511,13 @@ function extractMessageText(content: unknown): string {
  * is the last line of the transcript.
  */
 export function messagesToPrompt(
-  messages: Array<{ role: string; content: string; tool_call_id?: string; name?: string }>,
+  messages: Array<{
+    role: string;
+    content: string;
+    tool_call_id?: string;
+    name?: string;
+    tool_calls?: Array<{ id?: string; function?: { name?: string } }>;
+  }>,
   historyWindow = 0
 ): string {
   if (messages.length === 0) return "";
@@ -527,9 +533,7 @@ export function messagesToPrompt(
     } else if (m.role === "user" || m.role === "assistant") {
       if (text) conversation.push({ role: m.role, text });
       if (m.role === "user") lastUserContent = text;
-      const calls = Array.isArray((m as { tool_calls?: unknown }).tool_calls)
-        ? (m as { tool_calls: Array<{ id?: string; function?: { name?: string } }> }).tool_calls
-        : [];
+      const calls = Array.isArray(m.tool_calls) ? m.tool_calls : [];
       for (const c of calls) {
         if (c?.id && typeof c.function?.name === "string") callNameById.set(c.id, c.function.name);
       }

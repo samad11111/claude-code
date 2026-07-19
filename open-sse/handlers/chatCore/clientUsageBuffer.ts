@@ -14,10 +14,13 @@ import {
   estimateUsage as defaultEstimateUsage,
 } from "../../utils/usageTracking.ts";
 
-type ResponseLike = {
-  usage?: unknown;
-  choices?: Array<{ message?: { content?: unknown } }>;
-} | null | undefined;
+type ResponseLike =
+  | {
+      usage?: unknown;
+      choices?: Array<{ message?: { content?: unknown } }>;
+    }
+  | null
+  | undefined;
 
 export interface ClientUsageBufferDeps {
   addBufferToUsage: typeof defaultAddBuffer;
@@ -32,23 +35,27 @@ const DEFAULT_DEPS: ClientUsageBufferDeps = {
 };
 
 export function applyClientUsageBuffer(
-  translatedResponse: ResponseLike,
+  translatedResponse: unknown,
   body: unknown,
-  clientResponseFormat: unknown,
+  clientResponseFormat: string,
   deps: ClientUsageBufferDeps = DEFAULT_DEPS
 ): void {
+  const response =
+    translatedResponse && typeof translatedResponse === "object"
+      ? (translatedResponse as ResponseLike)
+      : null;
   // Add buffer and filter usage for client (to prevent CLI context errors)
-  if (translatedResponse?.usage) {
-    const buffered = deps.addBufferToUsage(translatedResponse.usage);
-    translatedResponse.usage = deps.filterUsageForFormat(buffered, clientResponseFormat);
+  if (response?.usage) {
+    const buffered = deps.addBufferToUsage(response.usage);
+    response.usage = deps.filterUsageForFormat(buffered, clientResponseFormat);
   } else {
     // Fallback: estimate usage when provider returned no usage block
-    const contentLength = JSON.stringify(
-      translatedResponse?.choices?.[0]?.message?.content || ""
-    ).length;
+    const contentLength = JSON.stringify(response?.choices?.[0]?.message?.content || "").length;
     if (contentLength > 0) {
       const estimated = deps.estimateUsage(body, contentLength, clientResponseFormat);
-      translatedResponse.usage = deps.filterUsageForFormat(estimated, clientResponseFormat);
+      if (response) {
+        response.usage = deps.filterUsageForFormat(estimated, clientResponseFormat);
+      }
     }
   }
 }
