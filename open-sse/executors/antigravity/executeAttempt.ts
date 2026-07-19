@@ -405,6 +405,7 @@ export async function tryCreditsRetry(
   const creditsBody = injectCreditsField(transformedBody);
   const serializedCreditsRequest = serializeAntigravityRequest(provider, headers, creditsBody);
   const finalCreditsHeaders = serializedCreditsRequest.headers;
+  applyAntigravityClientProfileHeaders(finalCreditsHeaders, credentials, creditsBody);
   try {
     await prl.captureCurrentProviderBody(
       url,

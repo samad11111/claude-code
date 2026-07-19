@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as os from "node:os";
 
-// Antigravity and Windsurf public defaults come from
+// Antigravity and Devin upstream public defaults come from
 // open-sse/utils/publicCreds.ts — no env override needed in this suite.
 const originalEnv = { ...process.env };
 Object.assign(process.env, {
@@ -29,6 +29,7 @@ const {
   CLINE_CONFIG,
   CODEX_CONFIG,
   CODEBUDDY_CN_CONFIG,
+  DEVIN_DESKTOP_CONFIG,
   ZED_CONFIG,
   CURSOR_CONFIG,
   GITHUB_CONFIG,
@@ -42,7 +43,6 @@ const {
   QODER_CONFIG,
   QWEN_CONFIG,
   TRAE_CONFIG,
-  WINDSURF_CONFIG,
   XAI_OAUTH_CONFIG,
   ZED_HOSTED_CONFIG,
 } = oauthModule;
@@ -67,7 +67,7 @@ const EXPECTED_PROVIDER_KEYS = [
   "kilocode",
   "cline",
   "clinepass",
-  "windsurf",
+  "devin-desktop",
   "devin-cli",
   "grok-cli",
   "xai-oauth",
@@ -99,8 +99,8 @@ const EXPECTED_CONFIG_BY_PROVIDER = {
   kilocode: KILOCODE_CONFIG,
   cline: CLINE_CONFIG,
   clinepass: CLINE_CONFIG, // reuses the Cline WorkOS flow (clinepass: cline in providers/index.ts)
-  windsurf: WINDSURF_CONFIG,
-  "devin-cli": WINDSURF_CONFIG,
+  "devin-desktop": DEVIN_DESKTOP_CONFIG,
+  "devin-cli": DEVIN_DESKTOP_CONFIG,
   trae: TRAE_CONFIG,
   "grok-cli": GROK_CLI_CONFIG,
   "xai-oauth": XAI_OAUTH_CONFIG,
@@ -145,8 +145,14 @@ const REQUIRED_FIELDS_BY_PROVIDER = {
   kilocode: ["apiBaseUrl", "initiateUrl", "pollUrlBase"],
   cline: ["appBaseUrl", "apiBaseUrl", "authorizeUrl", "tokenExchangeUrl", "refreshUrl"],
   clinepass: ["appBaseUrl", "apiBaseUrl", "authorizeUrl", "tokenExchangeUrl", "refreshUrl"],
-  windsurf: ["authorizeUrl", "apiServerUrl", "exchangePath", "inferenceUrl"],
-  "devin-cli": ["authorizeUrl", "apiServerUrl", "exchangePath", "inferenceUrl"],
+  "devin-desktop": [
+    "apiServerUrl",
+    "inferenceUrl",
+    "firebaseTokenUrl",
+    "ideName",
+    "defaultVersion",
+  ],
+  "devin-cli": ["apiServerUrl", "inferenceUrl", "firebaseTokenUrl", "ideName", "defaultVersion"],
   trae: ["apiEndpoint", "chatEndpoint", "webUrl"],
   // prettier-ignore
   "xai-oauth": ["authorizeUrl", "tokenUrl", "scope", "codeChallengeMethod", "clientId", "loopbackPort", "callbackPath", "callbackHost"],
@@ -563,8 +569,11 @@ test("Antigravity runs mocked browser OAuth exchanges and post-exchange enrichme
     (_url, init: any = {}) => {
       assert.equal(init.method, "POST");
       assert.equal(init.headers.Authorization, "Bearer anti-access");
-      assert.match(init.headers["User-Agent"], /^vscode\/1\.X\.X \(Antigravity\//);
-      assert.equal(init.headers["X-Goog-Api-Client"], undefined);
+      assert.match(
+        init.headers["User-Agent"],
+        /^antigravity\/2\.1\.1 [^ ]+\/[^ ]+ google-api-nodejs-client\/10\.3\.0$/
+      );
+      assert.equal(init.headers["X-Goog-Api-Client"], "gl-node/22.21.1");
       assert.deepEqual(
         JSON.parse(String(init.body)).metadata,
         getAntigravityLoadCodeAssistMetadata()
@@ -578,8 +587,11 @@ test("Antigravity runs mocked browser OAuth exchanges and post-exchange enrichme
     (_url, init: any = {}) => {
       assert.equal(init.method, "POST");
       assert.equal(init.headers.Authorization, "Bearer anti-access");
-      assert.match(init.headers["User-Agent"], /^vscode\/1\.X\.X \(Antigravity\//);
-      assert.equal(init.headers["X-Goog-Api-Client"], undefined);
+      assert.match(
+        init.headers["User-Agent"],
+        /^antigravity\/2\.1\.1 [^ ]+\/[^ ]+ google-api-nodejs-client\/10\.3\.0$/
+      );
+      assert.equal(init.headers["X-Goog-Api-Client"], "gl-node/22.21.1");
       assert.deepEqual(
         JSON.parse(String(init.body)).metadata,
         getAntigravityLoadCodeAssistMetadata()
@@ -611,6 +623,7 @@ test("Antigravity runs mocked browser OAuth exchanges and post-exchange enrichme
   // no longer updates the returned projectId synchronously — matching the 9router web
   // flow, which also returns the loadCodeAssist project id.
   assert.equal(antigravityMapped.projectId, "anti-project");
+  assert.equal(antigravityMapped.providerSpecificData.clientProfile, "ide");
 });
 
 test("Qoder enabled mode exchanges tokens and loads profile metadata through mocked endpoints", async () => {
